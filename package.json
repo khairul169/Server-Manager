@@ -14,6 +14,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "dockerode": "^4.0.0"
+    "dockerode": "^4.0.0",
+    "serve-static-bun": "^0.5.3"
   }
 }
