@@ -177,3 +177,4 @@ dist
 test/
 config.ts
 *.txt
+*.db
