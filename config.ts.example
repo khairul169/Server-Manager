@@ -1,0 +1,18 @@
+//
+
+import { ServerConfig } from "@/types";
+
+export const servers: ServerConfig[] = [
+  {
+    srvId: "json-server-test",
+    type: "process",
+    workingDir: "/Users/khairul/Projects/khai/server-manager/test",
+    startCommand: "json-server -p 3002 db.json",
+    // type: "docker",
+    // dockerId: "timetix-1_backend_1",
+    listenPort: 3001,
+    appPort: 3002,
+    aliveTimeout: 1000,
+    logger: true,
+  },
+];
