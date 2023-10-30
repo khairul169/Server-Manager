@@ -1,0 +1,19 @@
+{
+  "name": "server-manager",
+  "module": "src/main.ts",
+  "type": "module",
+  "scripts": {
+    "start": "bun src/main.ts",
+    "dev": "bun --watch src/main.ts"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.21",
+    "bun-types": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "dockerode": "^4.0.0"
+  }
+}
