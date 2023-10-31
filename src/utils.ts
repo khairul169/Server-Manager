@@ -24,7 +24,15 @@ export const isFormData = (contentType?: string | null) => {
   );
 };
 
-export const decodeBlob = (data: ArrayBuffer, parseJson: boolean = true) => {
-  const text = new TextDecoder("utf-8").decode(data);
-  return parseJson ? JSON.parse(text) : text;
+export const isJson = (contentType?: string | null) => {
+  return contentType === "application/json";
+};
+
+export const isPlainText = (contentType?: string | null) => {
+  return /^application\/json|text\/[a-z]+$/i.test(contentType || "");
+};
+
+export const decodeBlob = (data: Uint8Array, parseJson = true) => {
+  const res = data ? Buffer.from(data).toString("utf-8") : null;
+  return res && parseJson ? JSON.parse(res) : res;
 };

@@ -1,19 +1,13 @@
 import { db } from "@/db";
-import { decodeBlob } from "@/utils";
 
 export const getRequests = async (serverId?: string | null) => {
   const data: any[] = db
     .query(
-      `SELECT * FROM requests ${
+      `SELECT id, method, url, status, elapsed, date, created_at FROM requests ${
         serverId ? "WHERE server_id = $serverId" : ""
-      } ORDER BY id DESC LIMIT 50`
+      } ORDER BY id DESC LIMIT 10`
     )
     .all({ $serverId: serverId || "" });
 
-  const result = data.map((i) => ({
-    ...i,
-    request: decodeBlob(i.request),
-    response: decodeBlob(i.response),
-  }));
-  return Response.json(result);
+  return Response.json(data);
 };

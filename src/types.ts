@@ -18,15 +18,15 @@ export type RequestLog = {
     method: string;
     url: string;
     headers: { [key: string]: string };
-    body: string | FormData;
   };
+  requestBody: any;
   response: {
     url: string;
     headers: { [key: string]: string };
-    body: string | FormData;
     redirected?: boolean;
     status: number;
     statusText: string;
   };
+  responseBody: any;
   elapsed: number;
 };

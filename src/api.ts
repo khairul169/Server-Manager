@@ -1,4 +1,5 @@
 import { getLogs } from "./api/getLogs";
+import { getRequestById } from "./api/getRequestById";
 import { getRequests } from "./api/getRequests";
 import { getServers } from "./api/getServers";
 
@@ -28,6 +29,11 @@ export const apiHandler = async (req: Request) => {
       break;
     case "/requests":
       res = await getRequests(serverId);
+      break;
+    case "/request":
+      const id = parseInt(params.get("id") || "0", 10);
+      const body = params.get("body");
+      res = await getRequestById(id, body);
       break;
     case "/servers":
       res = await getServers();

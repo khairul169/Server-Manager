@@ -1,12 +1,10 @@
 import { useQuery } from "react-query";
 import api from "../../services/api";
 import { useEffect, useRef, useState } from "react";
-import { Buffer } from "buffer";
 import {
   Box,
   GridItem,
   HStack,
-  Image,
   Input,
   Select,
   SimpleGrid,
@@ -19,6 +17,8 @@ import {
   Textarea,
   VStack,
 } from "@chakra-ui/react";
+import { ErrorBoundary } from "react-error-boundary";
+import ErrorFallback from "../../components/ErrorFallback";
 
 const HomePage = () => {
   const [curServer, setCurServer] = useState<any>();
@@ -61,7 +61,7 @@ const HomePage = () => {
                 <RequestList curServer={curServer} onSelect={setViewRequest} />
               </GridItem>
 
-              {viewRequest ? <ViewRequest {...viewRequest} /> : null}
+              {viewRequest ? <ViewRequest id={viewRequest.id} /> : null}
             </SimpleGrid>
           </TabPanel>
 
@@ -117,36 +117,52 @@ const RequestList = ({ curServer, onSelect }: any) => {
   );
 };
 
-const ViewRequest = ({ request, response }: any) => {
+const ViewRequest = ({ id }: any) => {
+  const { data, isLoading } = useQuery({
+    queryKey: ["request", id],
+    queryFn: () => api.get("/request", { params: { id } }).then((i) => i.data),
+  });
+
+  if (isLoading) {
+    return <Text>Loading...</Text>;
+  }
+  if (!data) {
+    return <Text>Error!</Text>;
+  }
+
+  const { request, request_body, response, response_body } = data;
+
   return (
-    <Box>
-      <HStack>
-        <Input
-          value={request.method}
-          w={20}
-          px={1}
-          textAlign="center"
-          fontWeight="bold"
-        />
-        <Input value={request.url} />
-      </HStack>
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <Box>
+        <HStack>
+          <Input
+            value={request.method}
+            w={20}
+            px={1}
+            textAlign="center"
+            fontWeight="bold"
+          />
+          <Input value={request.url} />
+        </HStack>
 
-      <Tabs mt={2} variant="enclosed">
-        <TabList>
-          <Tab>Response</Tab>
-          <Tab>Request</Tab>
-        </TabList>
+        <Tabs mt={2} variant="enclosed">
+          <TabList>
+            <Tab>Response</Tab>
+            <Tab>Request</Tab>
+          </TabList>
 
-        <TabPanels>
-          <ReqResPanel data={response} />
-          <ReqResPanel data={request} />
-        </TabPanels>
-      </Tabs>
-    </Box>
+          <TabPanels>
+            <ReqResPanel data={response} body={response_body} />
+            <ReqResPanel data={request} body={request_body} />
+          </TabPanels>
+        </Tabs>
+      </Box>
+    </ErrorBoundary>
   );
 };
 
-const ReqResPanel = ({ data }: any) => {
+const ReqResPanel = ({ data, body }: any) => {
   return (
     <TabPanel p={0}>
       <Tabs>
@@ -157,10 +173,7 @@ const ReqResPanel = ({ data }: any) => {
 
         <TabPanels>
           <TabPanel px={0}>
-            <BodyView
-              contentType={data.headers["content-type"]}
-              body={data.body}
-            />
+            <BodyView contentType={data.headers["content-type"]} body={body} />
           </TabPanel>
           <TabPanel px={0}>
             <HeaderView headers={data.headers} />
@@ -172,27 +185,29 @@ const ReqResPanel = ({ data }: any) => {
 };
 
 const BodyView = ({ contentType = "", body }: any) => {
-  if (contentType.startsWith("image/")) {
-    return (
-      <Image
-        src={
-          `data:${contentType};base64,` + Buffer.from(body).toString("base64")
-        }
-      />
-    );
+  if (!body) {
+    return <Text>No Data</Text>;
   }
 
-  return (
-    <Textarea
-      value={typeof body === "string" ? body : JSON.stringify(body)}
-      minH="500px"
-    />
-  );
+  if (
+    contentType.startsWith("image/") &&
+    typeof body === "object" &&
+    body.uri
+  ) {
+    return <Text>Image</Text>;
+  }
+
+  let content = typeof body === "string" ? body : JSON.stringify(body);
+  if (contentType === "application/json") {
+    content = JSON.stringify(JSON.parse(content), null, 2);
+  }
+
+  return <Textarea value={content} minH="500px" />;
 };
 
 const HeaderView = ({ headers }: any) => {
   return (
-    <VStack alignItems="stretch" maxH="300px" overflowY="auto">
+    <VStack alignItems="stretch" maxH="500px" overflowY="auto">
       {Object.keys(headers).map((key) => {
         const value = headers[key];
 

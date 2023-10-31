@@ -1,6 +1,6 @@
 import { Subprocess } from "bun";
 import Dockerode, { Container } from "dockerode";
-import { isFormData } from "./utils";
+import { isFormData, isPlainText } from "./utils";
 import { RequestLog, ServerConfig } from "./types";
 import { db } from "./db";
 
@@ -75,12 +75,19 @@ export class ServerProcess {
     if (isFormData(reqContentType)) {
       reqBody = await req.formData();
     } else {
-      reqBody = await req.text();
+      reqBody = await req.blob();
     }
 
     let res: Response | null = null;
     const startTime = Date.now();
     const fetchTimeout = this.config.requestTimeout || 10000;
+
+    // if (req.headers.has("if-modified-since")) {
+    //   req.headers.delete("if-modified-since");
+    // }
+    // if (req.headers.has("if-none-match")) {
+    //   req.headers.delete("if-none-match");
+    // }
 
     const reqUrl = proxyUrl + url.pathname + url.search;
     const request = new Request(reqUrl, {
@@ -107,37 +114,31 @@ export class ServerProcess {
       res = new Response("Request Timeout!", { status: 400 });
     }
 
-    const resContentType = res.headers.get("content-type");
-    let resBody: any;
-
-    if (isFormData(resContentType)) {
-      resBody = await res.formData();
-    } else {
-      resBody = await res.text();
-    }
+    // const resContentType = res.headers.get("content-type");
+    const resBody = await res.blob();
 
     this.logRequest({
       request: {
         method: req.method,
         url: req.url,
         headers: Object.fromEntries(req.headers),
-        body: reqBody,
       },
+      requestBody: reqBody,
       response: {
         url: res.url,
         headers: Object.fromEntries(res.headers),
-        body: resBody,
         redirected: res.redirected,
         status: res.status,
         statusText: res.statusText,
       },
+      responseBody: resBody,
       elapsed: Date.now() - startTime,
     });
 
-    if (res.headers.get("content-encoding") === "gzip") {
-      // resBody = Bun.gzipSync(Buffer.from(resBody));
-      res.headers.delete("content-encoding");
-    }
+    // if (res.headers.get("content-encoding") === "gzip") {
+    //   // resBody = Bun.gzipSync(Buffer.from(resBody));
+    //   res.headers.delete("content-encoding");
+    // }
 
     if (res.redirected) {
       const newUrl = new URL(res.url);
@@ -272,11 +273,23 @@ export class ServerProcess {
   private async logRequest(data: RequestLog) {
     const query = db.query(
       `INSERT INTO requests
-      (server_id, method, url, request, response, status, elapsed, date, created_at)
-      VALUES ($serverId, $method, $url, $req, $res, $status, $elapsed, $date, $createdAt)`
+      (server_id, method, url, request, request_body, response, response_body, status, elapsed, date, created_at)
+      VALUES ($serverId, $method, $url, $req, $reqBody, $res, $resBody, $status, $elapsed, $date, $createdAt)`
     );
 
-    console.log("TEST123", data.response.body);
+    const reqBody =
+      data.requestBody instanceof Blob
+        ? Buffer.from(await data.requestBody.arrayBuffer())
+        : Buffer.from(JSON.stringify(data.requestBody));
+
+    const resType = data.response.headers["content-type"];
+    const resBody = data.responseBody;
+    const body =
+      isPlainText(resType) &&
+      resBody instanceof Blob &&
+      resBody.size < 1024 * 1024
+        ? Buffer.from(await resBody.arrayBuffer())
+        : null;
 
     const date = new Date().toISOString();
     const params = {
@@ -284,7 +297,9 @@ export class ServerProcess {
       $method: data.request.method,
       $url: data.request.url,
       $req: Buffer.from(JSON.stringify(data.request)),
+      $reqBody: reqBody,
       $res: Buffer.from(JSON.stringify(data.response)),
+      $resBody: body,
       $status: data.response.status,
       $elapsed: data.elapsed / 1000,
       $date: date.substring(0, 10),
