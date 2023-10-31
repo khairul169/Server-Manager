@@ -1,13 +1,15 @@
-import { useQuery } from "react-query";
+import { useInfiniteQuery, useQuery } from "react-query";
 import api from "../../services/api";
 import { useEffect, useRef, useState } from "react";
 import {
   Box,
+  Card,
   GridItem,
   HStack,
   Input,
   Select,
   SimpleGrid,
+  Skeleton,
   Tab,
   TabList,
   TabPanel,
@@ -19,10 +21,14 @@ import {
 } from "@chakra-ui/react";
 import { ErrorBoundary } from "react-error-boundary";
 import ErrorFallback from "../../components/ErrorFallback";
+import { useBottomScrollListener } from "react-bottom-scroll-listener";
 
 const HomePage = () => {
   const [curServer, setCurServer] = useState<any>();
   const [viewRequest, setViewRequest] = useState<any>();
+  const [date, setDate] = useState<string>(
+    new Date().toISOString().substring(0, 10)
+  );
 
   const { data: servers } = useQuery({
     queryKey: ["servers"],
@@ -43,8 +49,15 @@ const HomePage = () => {
             <option key={item.id}>{item.server_id}</option>
           ))}
         </Select>
-        <Text>{curServer?.running_time?.toFixed(2)}</Text>
+        <Input
+          w="auto"
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
       </HStack>
+
+      <StatsSection date={date} curServer={curServer} />
 
       <Tabs mt={2} variant="enclosed">
         <TabList>
@@ -58,7 +71,11 @@ const HomePage = () => {
               <GridItem>
                 <Text>Requests</Text>
 
-                <RequestList curServer={curServer} onSelect={setViewRequest} />
+                <RequestList
+                  date={date}
+                  curServer={curServer}
+                  onSelect={setViewRequest}
+                />
               </GridItem>
 
               {viewRequest ? <ViewRequest id={viewRequest.id} /> : null}
@@ -74,45 +91,109 @@ const HomePage = () => {
   );
 };
 
-const RequestList = ({ curServer, onSelect }: any) => {
-  const { data: requests } = useQuery({
-    queryKey: ["requests", curServer?.id],
+const StatsSection = ({ curServer, date }: any) => {
+  const { data } = useQuery({
+    queryKey: ["stats", curServer?.id, date],
     queryFn: () =>
       api
-        .get("/requests", { params: { server_id: curServer.server_id } })
+        .get("/stats", { params: { server_id: curServer?.server_id, date } })
         .then((i) => i.data),
     enabled: !!curServer,
   });
 
+  const statsItems = [
+    {
+      title: "Total Requests",
+      value: data?.total_requests || 0,
+    },
+    {
+      title: "Running Time",
+      value: `${data?.running_time?.toFixed(1) || 0}s` || 0,
+    },
+  ];
+
+  return (
+    <HStack spacing={4} my={4}>
+      {statsItems.map((item, idx) => (
+        <Card key={idx} flex={1} p={4}>
+          <Text textAlign="center" fontSize="lg">
+            {item.value}
+          </Text>
+          <Text textAlign="center" fontSize="sm">
+            {item.title}
+          </Text>
+        </Card>
+      ))}
+    </HStack>
+  );
+};
+
+const RequestList = ({ curServer, date, onSelect }: any) => {
+  const params = { server_id: curServer?.server_id, date };
+  const {
+    data: requests,
+    hasNextPage,
+    isFetching,
+    fetchNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["requests", params],
+    queryFn: ({ pageParam = 1 }) =>
+      api
+        .get("/requests", { params: { ...params, page: pageParam } })
+        .then((i) => ({ rows: i.data, page: pageParam })),
+    enabled: !!curServer,
+    getNextPageParam: (lastPage) =>
+      lastPage.rows?.length > 0 ? lastPage.page + 1 : undefined,
+    refetchOnWindowFocus: false,
+  });
+
+  const scrollRef = useBottomScrollListener(() => {
+    if (hasNextPage && !isFetching) {
+      fetchNextPage();
+    }
+  });
+
   return (
     <VStack
+      ref={scrollRef as any}
       mt={2}
       maxH="600px"
       overflowY="auto"
       alignItems="stretch"
       spacing={0}
     >
-      {requests?.map((item: any) => {
-        const { pathname } = new URL(item.url);
+      {requests?.pages
+        .flatMap((i) => i.rows)
+        .map((item: any) => {
+          const { pathname } = new URL(item.url);
 
-        return (
-          <Box
-            as="button"
-            textAlign="left"
-            borderBottomWidth={1}
-            py={2}
-            _hover={{ bg: "gray.100" }}
-            onClick={() => onSelect(item)}
-          >
-            <HStack alignItems="center">
-              <Text fontWeight="bold">{item.method}</Text>
-              <Text flex={1}>{pathname}</Text>
-              <Text>{item.status}</Text>
-            </HStack>
-            <Text fontSize="xs">{item.created_at}</Text>
-          </Box>
-        );
-      })}
+          return (
+            <Box
+              key={item.id}
+              as="button"
+              textAlign="left"
+              borderBottomWidth={1}
+              py={2}
+              _hover={{ bg: "gray.100" }}
+              onClick={() => onSelect(item)}
+            >
+              <HStack alignItems="center">
+                <Text fontWeight="bold">{item.method}</Text>
+                <Text flex={1}>{pathname}</Text>
+                <Text>{item.status}</Text>
+              </HStack>
+              <Text fontSize="xs">{item.created_at}</Text>
+            </Box>
+          );
+        })}
+
+      {isFetching
+        ? [...Array(5)].map((_, key) => (
+            <Box mt={2}>
+              <Skeleton key={key} h="60px" />
+            </Box>
+          ))
+        : null}
     </VStack>
   );
 };

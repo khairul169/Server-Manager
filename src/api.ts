@@ -2,6 +2,7 @@ import { getLogs } from "./api/getLogs";
 import { getRequestById } from "./api/getRequestById";
 import { getRequests } from "./api/getRequests";
 import { getServers } from "./api/getServers";
+import { getStats } from "./api/getStats";
 
 const CORS_HEADERS: any = {
   "Access-Control-Allow-Origin": "*",
@@ -27,8 +28,18 @@ export const apiHandler = async (req: Request) => {
     case "/logs":
       res = await getLogs(serverId);
       break;
+    case "/stats":
+      res = await getStats({
+        serverId,
+        date: params.get("date"),
+      });
+      break;
     case "/requests":
-      res = await getRequests(serverId);
+      res = await getRequests({
+        serverId,
+        page: Number(params.get("page")),
+        perPage: Number(params.get("perPage")),
+      });
       break;
     case "/request":
       const id = parseInt(params.get("id") || "0", 10);

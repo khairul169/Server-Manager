@@ -36,3 +36,32 @@ export const decodeBlob = (data: Uint8Array, parseJson = true) => {
   const res = data ? Buffer.from(data).toString("utf-8") : null;
   return res && parseJson ? JSON.parse(res) : res;
 };
+
+export const binds = (obj: object) => {
+  const params: any = {};
+
+  Object.keys(obj).forEach((key) => {
+    const value = (obj as any)[key];
+    if (value != null) {
+      params["$" + key] = value;
+    }
+  });
+
+  return params;
+};
+
+export const where = (...rules: (string | null | undefined)[]) => {
+  if (!rules.length) {
+    return "";
+  }
+
+  return "WHERE " + rules.filter((i) => i != null).join(" AND ");
+};
+
+export const or = (...rules: string[]) => {
+  if (!rules.length) {
+    return "";
+  }
+
+  return rules.filter((i) => i != null).join(" OR ");
+};
